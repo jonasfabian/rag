@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat with Assistant</title>
+    <style>
+        #loading-spinner {
+            display: none;
+            font-size: 1.5em;
+            color: #555;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .message strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        #conversation {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat with Assistant</h1>
+    <div id="conversation"></div>
+    <div id="loading-spinner">Loading...</div>
+    <form id="chat-form">
+        <input type="text" id="query-input" placeholder="Type your message here" autocomplete="off" required>
+        <button type="submit">Send</button>
+    </form>
+
+    <script>
+        const conversationDiv = document.getElementById('conversation');
+        const chatForm = document.getElementById('chat-form');
+        const queryInput = document.getElementById('query-input');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        let conversationHistory = [];
+
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = queryInput.value.trim();
+            if (!query) return;
+            queryInput.value = '';
+            displayMessage('User', query);
+            loadingSpinner.style.display = 'block';
+
+            fetch('http://127.0.0.1:5001/api/query', {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: query,
+                    conversation_history: conversationHistory
+                }),
+            })
+            .then(response => {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let assistantMessage = '';
+                let isFirstChunk = true;
+
+                function readChunk() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                            loadingSpinner.style.display = 'none';
+                            conversationHistory.push(['User', query]);
+                            conversationHistory.push(['Assistant', assistantMessage]);
+
+                            return;
+                        }
+
+                        const chunk = decoder.decode(value);
+
+                        assistantMessage += chunk;
+
+                        if (isFirstChunk) {
+                            displayMessage('Assistant', chunk);
+                            isFirstChunk = false;
+                        } else {
+                            updateLastAssistantMessage(chunk);
+                        }
+                        readChunk();
+                    }).catch(error => {
+                        console.error('Error reading stream:', error);
+                        loadingSpinner.style.display = 'none';
+                        displayMessage('Error', 'An error occurred while reading the response.');
+                    });
+                }
+
+                readChunk();
+            })
+            .catch((error) => {
+                console.error('Fetch error:', error);
+                loadingSpinner.style.display = 'none';
+                displayMessage('Error', 'An error occurred while fetching the response.');
+            });
+        });
+
+        function displayMessage(speaker, message) {
+            const p = document.createElement('p');
+            p.classList.add('message');
+            p.innerHTML = `<strong>${speaker}:</strong> <span>${message}</span>`;
+            conversationDiv.appendChild(p);
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+
+        function updateLastAssistantMessage(chunk) {
+            const messages = document.querySelectorAll('.message');
+            if (messages.length === 0) return;
+
+            const lastMessage = messages[messages.length - 1];
+            const span = lastMessage.querySelector('span');
+            span.innerText += chunk;
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>
