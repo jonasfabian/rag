@@ -32,7 +32,7 @@ Assistant, please answer the user's question based on the above context: {questi
 
 embedding_function = get_embedding_function()
 db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
-model = OllamaLLM(model="llama3.2-vision:latest", streaming=True) # enable streaming gpt-like
+model = OllamaLLM(model="llama3.2:latest", streaming=True) # enable streaming gpt-like
 
 @app.route('/api/query', methods=['POST', 'OPTIONS'])
 def api_query():
